@@ -1,0 +1,23 @@
+# Ignore credentials and sensitive files
+credentials.json
+config.yaml
+
+# Ignore compiled Python files
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignore output files
+output.csv
+debug.log
+playlist_data.csv
+
+#Ignore output Directories
+chord_data/
+chord_visualizations/
+converted_jsons/
+converted_wavs/
+midi_files/
+midi_texts/
+unconverted_mp3s
+venv/
