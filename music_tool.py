@@ -9,8 +9,13 @@ import mido
 import json
 # from mido import Message, MidiFile, MidiTrack
 
-
-### AUDIO CONVERSION FUNCTIONS ###
+# *****************************************************
+#   
+#   convert_mp3_to_wav 
+#
+#   Brief: givena .mp3 file convert it to a .wav file
+#
+# *****************************************************
 def convert_mp3_to_wav(input_file, output_folder="converted_wavs"):
     """
     Converts an MP3 file to WAV format.
@@ -28,7 +33,14 @@ def convert_mp3_to_wav(input_file, output_folder="converted_wavs"):
     except Exception as e:
         print(f"❌ Error converting {input_file}: {e}")
         return None
-
+    
+# *****************************************************
+#   
+#   convert_folder 
+#
+#   Brief: Given a folder of .mp3 files convert all of them to a folder containing .wav files
+#
+# *****************************************************
 def convert_folder(input_folder, output_folder="converted_wavs"):
     """
     Converts all MP3 files in the given input folder to WAV format.
@@ -47,7 +59,13 @@ def convert_folder(input_folder, output_folder="converted_wavs"):
         convert_mp3_to_wav(input_file_path, output_folder)
     print("Conversion complete.")
 
-### CHORD EXTRACTION FUNCTIONS ###
+# *****************************************************
+#   
+#   extract_chords_from_wav 
+#
+#   Brief: Given a .wav file extract the chords using harmonic profiling and output a .csv file containin the timestamp and chord
+#
+# *****************************************************
 def extract_chords_from_wav(wav_file, output_folder="chord_data"):
     """
     Extracts chord progressions from a WAV file and saves the output as a CSV.
@@ -97,6 +115,13 @@ def extract_chords_from_wav(wav_file, output_folder="chord_data"):
     print(f"Chords extracted and saved to: {output_csv}\n")
     return df
 
+# *****************************************************
+#   
+#   process_wav_folder 
+#
+#   Brief: Given a folder containing .wav files process each wav file for chord extraction
+#
+# *****************************************************
 def process_wav_folder(input_folder="converted_wavs", output_folder="chord_data"):
     """
     Processes all WAV files in the input folder, extracting chord progressions.
@@ -113,7 +138,13 @@ def process_wav_folder(input_folder="converted_wavs", output_folder="chord_data"
         full_path = os.path.join(input_folder, wav_file)
         extract_chords_from_wav(full_path, output_folder)
 
-### CHORD VISUALIZATION FUNCTION ###
+# *****************************************************
+#   
+#   visualize_chords_on_y_axis 
+#
+#   Brief: Given a .csv file and the save folder location I use the matplotlib to visualize the chord progress on the y-axis
+#
+# *****************************************************
 def visualize_chords_on_y_axis(csv_file, save_folder="chord_visualizations", show_plot=True):
     """
     Visualizes the chord progression with time on the x-axis and chords on the y-axis.
@@ -141,7 +172,14 @@ def visualize_chords_on_y_axis(csv_file, save_folder="chord_visualizations", sho
     else:
         plt.close()
 
-### CSV TO MIDI CONVERSION FUNCTIONS ###
+
+# *****************************************************
+#   
+#   chord_to_midi_notes 
+#
+#   Brief: Give a set of chord convert chord data to .mid notes
+#
+# *****************************************************
 def chord_to_midi_notes(chord):
     """
     Converts a chord label (e.g., 'C', 'Cm', 'G', 'Em') to a list of MIDI note numbers.
@@ -171,6 +209,13 @@ def chord_to_midi_notes(chord):
         base = 60  # default to C if unknown
     return [base + interval for interval in intervals]
 
+# *****************************************************
+#   
+#   convert_csv_to_midi 
+#
+#   Brief: Logic for converting a .csv file to a .mid file
+#
+# *****************************************************
 def convert_csv_to_midi(csv_file, output_folder="midi_files"):
     """
     Converts a chord progression CSV file to a MIDI file.
@@ -211,6 +256,13 @@ def convert_csv_to_midi(csv_file, output_folder="midi_files"):
     mid.save(output_midi)
     print(f"MIDI file saved to: {output_midi}")
 
+# *****************************************************
+#   
+#   process_csv_folder 
+#
+#   Brief: Convert a folder of .csv files to a folder of .mid files
+#
+# *****************************************************
 def process_csv_folder(input_folder, output_folder="midi_files"):
     """
     Converts all CSV files in the input folder to MIDI files.
@@ -228,7 +280,14 @@ def process_csv_folder(input_folder, output_folder="midi_files"):
         convert_csv_to_midi(full_path, output_folder)
     print("CSV to MIDI conversion complete.")
 
-### MIDI TO TEXT CONVERSION FUNCTIONS ###
+
+# *****************************************************
+#   
+#   convert_midi_to_text 
+#
+#   Brief: Logic for converting .midi file to .txt file
+#
+# *****************************************************
 def convert_midi_to_text(midi_file, output_folder="midi_texts"):
     """
     Converts a MIDI file to a plain text representation.
@@ -254,6 +313,13 @@ def convert_midi_to_text(midi_file, output_folder="midi_texts"):
             f.write(line + "\n")
     print(f"Text file saved to: {output_file}")
 
+# *****************************************************
+#   
+#   convert_midi_to_json 
+#
+#   Brief: Converts a folder of .mid files to .txt files
+#
+# *****************************************************
 def process_midi_folder(input_folder, output_folder="midi_texts"):
     """
     Converts all MIDI files in the input folder to text files.
@@ -271,6 +337,13 @@ def process_midi_folder(input_folder, output_folder="midi_texts"):
         convert_midi_to_text(full_path, output_folder)
     print("MIDI to text conversion complete.")
 
+# *****************************************************
+#   
+#   convert_midi_to_json 
+#
+#   Brief: logic for converting .midi file to .json file
+#
+# *****************************************************
 def convert_midi_to_json(midi_file, json_file):
     """
     Convert a MIDI file to JSON format using the mido library.
@@ -308,6 +381,15 @@ def convert_midi_to_json(midi_file, json_file):
     except Exception as e:
         print(f"Error converting {midi_file}: {str(e)}")
 
+
+# *****************************************************
+#   
+#   process_midi_folder_json_conversion 
+#
+#   Brief: used for converting a folder containing .mid files to a folder containing .json files
+#   Utilizes the covert_midi_to_json
+#
+# *****************************************************
 def process_midi_folder_json_conversion(input_folder, output_folder):
     """
     Process all MIDI files in a folder and convert them to JSON.
