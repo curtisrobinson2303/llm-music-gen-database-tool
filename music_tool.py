@@ -76,7 +76,7 @@ def convert_folder(input_folder, output_folder="converted_wavs"):
 #
 #   extract_chords_from_wav
 #
-#   Brief: Given a .wav file extract the chords using harmonic profiling and output a .csv file containin the timestamp and chord
+#   Brief: Given a .wav file extract the chords using harmonic profiling and output a .csv file containing the timestamp and chord
 #
 # *****************************************************
 def extract_chords_from_wav(wav_file, output_folder="chord_data"):
@@ -161,7 +161,7 @@ def process_wav_folder(input_folder="converted_wavs", output_folder="chord_data"
 #
 #   visualize_chords_on_y_axis
 #
-#   Brief: Given a .csv file and the save folder location I use the matplotlib to visualize the chord progress on the y-axis
+#   Brief: Given a .csv file and the save folder location, visualize the chord progression on the y-axis
 #
 # *****************************************************
 def visualize_chords_on_y_axis(
@@ -198,7 +198,7 @@ def visualize_chords_on_y_axis(
 #
 #   chord_to_midi_notes
 #
-#   Brief: Give a set of chord convert chord data to .mid notes
+#   Brief: Given a chord label, convert chord data to MIDI note numbers.
 #
 # *****************************************************
 def chord_to_midi_notes(chord):
@@ -243,6 +243,45 @@ def chord_to_midi_notes(chord):
 
 # *****************************************************
 #
+#   detect_chord
+#
+#   Brief: Given a list of MIDI note numbers, detect the chord as a simple major or minor triad.
+#
+# *****************************************************
+def detect_chord(notes):
+    """
+    Detects the chord from a list of MIDI note numbers by matching against major and minor triad templates.
+    Returns the chord label as a string (e.g., "Ab", "Abm").
+    """
+    mods = sorted(set([n % 12 for n in notes]))
+    major_template = [0, 4, 7]
+    minor_template = [0, 3, 7]
+    note_names = {
+        0: "C",
+        1: "C#",
+        2: "D",
+        3: "Eb",
+        4: "E",
+        5: "F",
+        6: "F#",
+        7: "G",
+        8: "Ab",
+        9: "A",
+        10: "Bb",
+        11: "B",
+    }
+    for root in range(12):
+        major = sorted([(root + interval) % 12 for interval in major_template])
+        minor = sorted([(root + interval) % 12 for interval in minor_template])
+        if mods == major:
+            return note_names[root]
+        if mods == minor:
+            return note_names[root] + "m"
+    return "Unknown"
+
+
+# *****************************************************
+#
 #   convert_csv_to_midi
 #
 #   Brief: Logic for converting a .csv file to a .mid file
@@ -259,8 +298,8 @@ def convert_csv_to_midi(csv_file, output_folder="midi_files"):
     df = df.sort_values("Timestamp")
     ticks_per_beat = 480
     ticks_per_second = 960  # assuming 120 BPM: 1 second = 960 ticks
-    mid = MidiFile(ticks_per_beat=ticks_per_beat)
-    track = MidiTrack()
+    mid = mido.MidiFile(ticks_per_beat=ticks_per_beat)
+    track = mido.MidiTrack()
     mid.tracks.append(track)
     track.append(mido.MetaMessage("set_tempo", tempo=500000, time=0))
     events = []
@@ -281,7 +320,7 @@ def convert_csv_to_midi(csv_file, output_folder="midi_files"):
         tick, event_type, notes = event
         delta = tick - prev_tick
         for note in notes:
-            track.append(Message(event_type, note=note, velocity=64, time=delta))
+            track.append(mido.Message(event_type, note=note, velocity=64, time=delta))
             delta = 0
         prev_tick = tick
     output_midi = os.path.join(
@@ -322,7 +361,7 @@ def process_csv_folder(input_folder, output_folder="midi_files"):
 #
 #   convert_midi_to_text
 #
-#   Brief: Logic for converting .midi file to .txt file
+#   Brief: Logic for converting a .midi file to a .txt file
 #
 # *****************************************************
 def convert_midi_to_text(midi_file, output_folder="midi_texts"):
@@ -355,34 +394,7 @@ def convert_midi_to_text(midi_file, output_folder="midi_texts"):
 #
 #   convert_midi_to_json
 #
-#   Brief: Converts a folder of .mid files to .txt files
-#
-# *****************************************************
-def process_midi_folder(input_folder, output_folder="midi_texts"):
-    """
-    Converts all MIDI files in the input folder to text files.
-    """
-    if not os.path.exists(input_folder):
-        print(f"Input folder '{input_folder}' does not exist.")
-        return
-    midi_files = [f for f in os.listdir(input_folder) if f.lower().endswith(".mid")]
-    if not midi_files:
-        print(f"No MIDI files found in '{input_folder}'.")
-        return
-    print(
-        f"Found {len(midi_files)} MIDI file(s) in '{input_folder}'. Converting to text..."
-    )
-    for midi_file in midi_files:
-        full_path = os.path.join(input_folder, midi_file)
-        convert_midi_to_text(full_path, output_folder)
-    print("MIDI to text conversion complete.")
-
-
-# *****************************************************
-#
-#   convert_midi_to_json
-#
-#   Brief: logic for converting .midi file to .json file
+#   Brief: Logic for converting a .midi file to a .json file
 #
 # *****************************************************
 def convert_midi_to_json(midi_file, json_file):
@@ -427,17 +439,12 @@ def convert_midi_to_json(midi_file, json_file):
 #
 #   process_midi_folder_json_conversion
 #
-#   Brief: used for converting a folder containing .mid files to a folder containing .json files
-#   Utilizes the covert_midi_to_json
+#   Brief: Used for converting a folder containing .mid files to a folder containing .json files
 #
 # *****************************************************
 def process_midi_folder_json_conversion(input_folder, output_folder):
     """
-    Process all MIDI files in a folder and convert them to JSON.
-
-    Args:
-        input_folder (str): Folder containing MIDI files.
-        output_folder (str): Folder to save JSON files.
+    Converts all MIDI files in the input folder to JSON files.
     """
     if not os.path.exists(input_folder):
         print(f"Input folder '{input_folder}' does not exist")
@@ -459,6 +466,70 @@ def process_midi_folder_json_conversion(input_folder, output_folder):
         name, _ = os.path.splitext(base_name)
         json_file = os.path.join(output_folder, name + ".json")
         convert_midi_to_json(input_file, json_file)
+
+
+# *****************************************************
+#
+#   NEW FUNCTION: convert_midi_to_csv (Chord Extraction)
+#
+#   Brief: Converts a MIDI file to a CSV file containing chord progression data.
+#
+#   CSV format:
+#   Timestamp,Chord
+#   0.53,Ab
+#   1.09,Ab
+#   1.61,Ab
+#   ...
+#
+# *****************************************************
+def convert_midi_to_csv(midi_file, output_folder="midi_csv"):
+    """
+    Converts a MIDI file to CSV format with chord progression information.
+    Assumes the MIDI file contains chord events as groups of note_on messages in track 0.
+    """
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+    mid = mido.MidiFile(midi_file)
+    ticks_per_beat = mid.ticks_per_beat
+    # Get tempo from first set_tempo event; default to 500000 microseconds per beat.
+    tempo = 500000
+    for track in mid.tracks:
+        for msg in track:
+            if msg.type == "set_tempo":
+                tempo = msg.tempo
+                break
+        if tempo != 500000:
+            break
+    seconds_per_tick = tempo / (ticks_per_beat * 1e6)
+
+    # Process track 0 for chord events
+    abs_tick = 0
+    chord_events = []  # list of tuples (abs_tick, [note_numbers])
+    current_group = None
+    for msg in mid.tracks[0]:
+        abs_tick += msg.time
+        if msg.type == "note_on" and msg.velocity > 0:
+            # Group note_on events that occur at the same absolute tick
+            if current_group is not None and current_group[0] == abs_tick:
+                current_group[1].append(msg.note)
+            else:
+                current_group = (abs_tick, [msg.note])
+                chord_events.append(current_group)
+    # For each chord event, detect chord label
+    output_data = []
+    for tick, notes in chord_events:
+        timestamp = tick * seconds_per_tick
+        chord_label = detect_chord(notes)
+        output_data.append({"Timestamp": round(timestamp, 2), "Chord": chord_label})
+
+    # Create DataFrame and save CSV
+    df = pd.DataFrame(output_data)
+    base_name = os.path.basename(midi_file)
+    name, _ = os.path.splitext(base_name)
+    output_csv = os.path.join(output_folder, name + ".csv")
+    df.to_csv(output_csv, index=False)
+    print(f"Chord CSV file saved to: {output_csv}")
+    return df
 
 
 # *****************************************************
@@ -614,7 +685,7 @@ def databasegen(url, credentials_file) -> bool:
 ### MAIN FUNCTION WITH COMMAND-LINE INTERFACE ###
 def main():
     parser = argparse.ArgumentParser(
-        description="Music Tool: Convert MP3s to WAVs, extract chord progressions, visualize chords, convert CSV to MIDI, convert MIDI to text, or converts midi to json."
+        description="Music Tool: Convert MP3s to WAVs, extract chord progressions, visualize chords, convert CSV to MIDI, convert MIDI to text, convert MIDI to JSON, or convert MIDI to CSV."
     )
     subparsers = parser.add_subparsers(dest="command", help="Sub-command help")
 
@@ -723,6 +794,23 @@ def main():
         help="Folder to save JSON files (default: 'converted_jsons').",
     )
 
+    # NEW Subcommand: midi2csv
+    parser_midi2csv = subparsers.add_parser(
+        "midi2csv", help="Convert MIDI file(s) to CSV files (chord progression)."
+    )
+    parser_midi2csv.add_argument(
+        "--midi_file", type=str, help="Single MIDI file to convert to CSV."
+    )
+    parser_midi2csv.add_argument(
+        "--input_folder", type=str, help="Folder containing MIDI files to convert."
+    )
+    parser_midi2csv.add_argument(
+        "--output_folder",
+        type=str,
+        default="midi_csv",
+        help="Folder to save CSV files.",
+    )
+
     # Subcommand: databasegen
     parser_databasegen = subparsers.add_parser(
         "databasegen", help="Initiate database gen. pipeline."
@@ -766,7 +854,6 @@ def main():
             )
     elif args.command == "midi2json":
         if args.midi_file:
-            # Convert a single MIDI file
             if not os.path.exists(args.midi_file):
                 print(f"MIDI file '{args.midi_file}' does not exist")
                 return
@@ -782,15 +869,31 @@ def main():
             json_file = os.path.join(args.output_folder, name + ".json")
             convert_midi_to_json(args.midi_file, json_file)
         elif args.input_folder:
-            # Convert all MIDI files in a folder
             process_midi_folder_json_conversion(args.input_folder, args.output_folder)
         else:
             print(
                 "Please specify either --midi_file for a single file or --input_folder for a folder of MIDI files."
             )
-            parser_midi2json.print_help()
+    elif args.command == "midi2csv":
+        if args.midi_file:
+            convert_midi_to_csv(args.midi_file, args.output_folder)
+        elif args.input_folder:
+            midi_files = [
+                f
+                for f in os.listdir(args.input_folder)
+                if f.lower().endswith((".mid", ".midi"))
+            ]
+            if not midi_files:
+                print(f"No MIDI files found in '{args.input_folder}'.")
+                return
+            for midi_file in midi_files:
+                full_path = os.path.join(args.input_folder, midi_file)
+                convert_midi_to_csv(full_path, args.output_folder)
+        else:
+            print(
+                "Please specify either --midi_file for a single file or --input_folder for a folder of MIDI files."
+            )
     elif args.command == "databasegen":
-        # Begin databasegen pipeline
         if args.input_url:
             databasegen(args.input_url, args.credentials_path)
         else:
