@@ -15,6 +15,11 @@ import time
 
 from spotipy.oauth2 import SpotifyOAuth
 
+import subprocess
+import pathlib
+
+from typing import List, Tuple
+
 # from mido import Message, MidiFile, MidiTrack
 
 
@@ -550,90 +555,167 @@ def get_spotify_credentials(credentials_file: str):
 
 # *****************************************************
 #
-#   generate_input_csv()
+#   extract_danceability()
 #
-#   Brief:
+#   Brief: This function uses the essentia ML models to extract the dancebility audio feature from a .wav file
 #
 # *****************************************************
-def generate_input_csv(
-    playlist_url: str, output_csv: str, client_id: str, client_secret: str
-):
-    """
-    Fetches song IDs and names from a Spotify playlist and saves them to a CSV file.
-    """
-    sp = spotipy.Spotify(
-        auth_manager=SpotifyOAuth(
-            client_id=client_id,
-            client_secret=client_secret,
-            redirect_uri="http://localhost:8080",
-            scope="playlist-read-private",
+def extract_danceability(pathToURL):
+    pass
+
+
+# *****************************************************
+#
+#   extract_valance()
+#
+#   Brief: This function uses the essentia ML models to extract the valance audio feature from a .wav file
+#
+# *****************************************************
+def extract_valance(pathToURL):
+    pass
+
+
+# *****************************************************
+#
+#   extract_tonality()
+#
+#   Brief: This function uses the essentia ML models to extract the tonality audio feature from a .wav file
+#
+# *****************************************************
+def extract_tonality(pathToURL):
+    pass
+
+
+# *******************
+# **********************************
+#
+#   extract_acousticness()
+#
+#   Brief: This function uses the essentia ML models to extract the acousticness audio feature from a .wav file
+#
+# *****************************************************
+def extract_acousticness(pathToURL):
+    pass
+
+
+# *****************************************************
+#
+#   extract_instrumentalness()
+#
+#   Brief: This function uses the essentia ML models to extract the instrumentalness audio feature from a .wav file
+#
+# *****************************************************
+def extract_instrumentalness(pathToURL):
+    pass
+
+
+# *****************************************************
+#
+#   extract_ML_features()
+#
+#   Brief: This function combines the individual functionality of each of the complex ML audio features from essentia and returns a JSON set of key:value pairs
+#
+# *****************************************************
+def extract_ML_features():
+    pass
+
+
+# *****************************************************
+#
+#   download_playlist()
+#
+#   Brief: this function downloads a playlist utilizing the cli tool spotdl, then returns back the path to the path to the directory
+#
+# *****************************************************
+def download_playlist(url: str):
+    # output_dir = Path.cwd() / "downloaded_mp3_files"
+    # output_dir.mkdir(exist_ok=True)
+
+    # command = ["spotdl" "download", url, "--output", str(output_dir)]
+
+    # try:
+    #     subprocess.run(command, check=True)
+    # except subprocess.CalledProcessError as e:
+    #     print(f"An error occured while downloaded the playlist: {e}")
+    #     raise
+
+    # return output_dir
+
+    pass
+
+
+#############
+# Functions to download .wav files given the spotify playlist
+
+
+def get_spotify_credentials(credentials_path: str) -> Tuple[str, str]:
+    """Load Spotify API credentials from a JSON file."""
+    with open(credentials_path, "r") as f:
+        credentials = json.load(f)
+    return credentials["client_id"], credentials["client_secret"]
+
+
+def download_songs(song_urls: List[str], output_folder: str) -> None:
+    """Download songs using spotdl to a specific output folder."""
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    for url in song_urls:
+        print(f"Downloading: {url}")
+        subprocess.run(
+            ["spotdl", url, "--output", output_folder, "--format", "wav"], check=True
         )
+
+
+def download_playlist(playlist_url: str, output_folder: str) -> None:
+    """Download an entire playlist using spotdl."""
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    print(f"Downloading playlist: {playlist_url}")
+    subprocess.run(
+        ["spotdl", playlist_url, "--output", output_folder, "--format", "wav"],
+        check=True,
     )
 
-    # Extract playlist ID from URL
-    playlist_id = playlist_url.split("playlist/")[1].split("?")[0]
 
-    results = sp.playlist_tracks(playlist_id)
-
-    song_data = []
-    for track in results["items"]:
-        song_id = track["track"]["id"]
-        song_name = track["track"]["name"]
-        song_data.append([song_id, song_name])
-
-    df = pd.DataFrame(song_data, columns=["id", "name"])
-    df.to_csv(output_csv, index=False)
-    print(f"CSV file saved: {output_csv}")
+############
 
 
 # *****************************************************
 #
-#   process_input_metadata()
-#
-#   Brief:
-#
-# *****************************************************
-def process_input_metadata(input_csv: str, client_id: str, client_secret: str):
-    """
-    Reads the CSV file and fetches detailed song attributes from Spotify API.
-    """
-    sp = spotipy.Spotify(
-        auth_manager=SpotifyOAuth(
-            client_id=client_id,
-            client_secret=client_secret,
-            redirect_uri="http://localhost:8080",
-            scope="user-library-read",
-        )
-    )
-
-    df = pd.read_csv(input_csv)
-
-    metadata_list = []
-    for song_id in df["id"]:
-        try:
-            time.sleep(0.5)  # Avoid rate limits
-            attributes = sp.audio_features([song_id])  # Pass as a list
-            if attributes and attributes[0]:
-                metadata_list.append(json.dumps(attributes[0]))
-            else:
-                metadata_list.append("{}")  # Store empty JSON if data is missing
-        except spotipy.SpotifyException as e:
-            print(f"Error fetching audio features for {song_id}: {e}")
-            metadata_list.append("{}")  # Store empty JSON on error
-
-    df["attributes"] = metadata_list
-    df.to_csv(input_csv, index=False)
-    print(f"Updated CSV file with metadata: {input_csv}")
-
-
-# *****************************************************
-#
-#   create_database_pipeline()
+#   databasegen()
 #
 #   Brief: The following function contains all the logic to execute the database creation pipeline
 #
 # *****************************************************
 def databasegen(url, credentials_file) -> bool:
+    ###########
+    # Step 0: Load credentials
+    client_id, client_secret = get_spotify_credentials("credentials.json")
+
+    # (Optional) Print credentials to verify (comment this out if not needed)
+    # print(client_id, client_secret)
+
+    # Step 1: Single songs example -- commented out to test playlist
+    # songs = [
+    #     "https://open.spotify.com/track/your_song_id_1",
+    #     "https://open.spotify.com/track/your_song_id_2",
+    # ]
+
+    # output_dir_songs = "downloaded_songs"
+    # download_songs(songs, output_dir_songs)
+
+    # Step 2: Playlist example
+    playlist_url = "https://open.spotify.com/playlist/37i9dQZF1E370bz4rA3n5H?si=90be33661d284b22"  # change this to take the parameter URL
+    output_dir_playlist = "downloaded_playlist"
+    download_playlist(playlist_url, output_dir_playlist)
+
+    print("All downloads complete and store in downloaded_playlist!")
+
+    # now I need to move to the feature extraction --> basic
+    ##########
+
     """
     Main function to generate the training dataset by processing input metadata,
     extracting song attributes, analyzing audio, and merging input-output pairs.
@@ -644,42 +726,64 @@ def databasegen(url, credentials_file) -> bool:
 
     """
     As this function is developed uncomment the code function calls below
-    
     """
 
     # Retrieve API credentials
-    client_id, client_secret = get_spotify_credentials(credentials_file)
+    # client_id, client_secret = get_spotify_credentials(credentials_file)
 
-    # Step 1: Generate Input Metadata (.csv)
-    input_csv_path = "playlist_data.csv"
-    generate_input_csv(url, input_csv_path, client_id, client_secret)
+    # INPUT PAIR CREATION SECTION
+    # -------------------------------------
+    # Step 1: Download all of the songs and store in folder (in .mp3 format)
+    # mp3_files = download_playlist(url)
+    # # Step 2: Convert all of the songs to .wav format
+    # convert_folder(
+    #     mp3_files,
+    # )
 
-    # # Step 2: Process Input Metadata
-    # process_input_metadata(input_csv_path, client_id, client_secret)
+    # Step 3: Analyze all of the songs that are within the folder containing each of the .wav files
+    # Step 3.1 Basic Feature Extraction (Objective):
+    """
+    enter the analyze .wav folder function
+    hop in to while loop that iterates through each of the songs in the folder
+    for each song call the analyze song basic (for input pair creation)
+    store the results and pass that back to be stored in the output file
+    """
 
-    # paused dev of Input pipeline because of deprecated audio-features enpoint
+    # Step 3.2 ML Feature Abstraction (Subjective)
+    """
+    enter the analyze .wav folder function
+    hop in to while loop that iterates through each of the songs in the folder
+    for each song call the analyze song ML (for input pair creation)
+    store the results and pass that back to be stored in the output file
+    """
 
-    # # Step 3: Download and Convert Audio
+    # Step 4 Store all of the results in an output JSON
+
+    # OUTPUT PAIR CREATION SECTION
+    # -------------------------------------
+    # # Step 1: Download and Convert Audio
     # # Use spotdl to download .mp3 files, convert them to .wav, and prepare for analysis.
     # wav_directory = process_audio_files(input_csv_path)
 
-    # # Step 4: Analyze Audio Data
+    # # Step 2: Analyze Audio Data
     # # Extract harmonic, beat, and chord data, storing results in CSV format.
     # analyzed_data_dir = analyze_audio(wav_directory)
 
-    # # Step 5: Convert Processed Data to JSON
+    # # Step 3: Convert Processed Data to JSON
     # # Convert the analyzed data (stored in CSV format) into JSON for training.
     # analyzed_json_dir = convert_analyzed_data_to_json(analyzed_data_dir)
 
-    # # Step 6: Merge Input and Output Data
+    # COMBINING INPUT AND OUTPUT DATA PAIRS
+    # -------------------------------------
+    # # Step 4: Merge Input and Output Data
     # # Combine input metadata with the corresponding analyzed song data.
     # final_dataset_path = merge_input_output(input_csv_path, analyzed_json_dir)
 
-    # Step 7: Output the location of the final dataset
+    # Step 5: Output the location of the final dataset
     # print(f"Dataset successfully created: {final_dataset_path}")
-    print("Output: /final/dataset/path/file.json")
+    # print("Output: /final/dataset/path/file.json")
 
-    return False  # Adjust as needed for error handling
+    # return False  # Adjust as needed for error handling
 
 
 ### MAIN FUNCTION WITH COMMAND-LINE INTERFACE ###
