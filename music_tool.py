@@ -8,6 +8,7 @@ from pydub import AudioSegment
 import mido
 import json
 
+import librosa
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 import pandas as pd
@@ -20,8 +21,12 @@ import pathlib
 
 from typing import List, Tuple
 
+import numpy as np
+from sklearn.preprocessing import LabelEncoder
+
 import librosa
-import numpy as np 
+import numpy as np
+
 # from mido import Message, MidiFile, MidiTrack
 
 
@@ -677,11 +682,130 @@ def download_playlist(playlist_url: str, output_folder: str) -> None:
     )
 
 
+def extract_tempo(wav_path: str) -> float:
+    """
+    Extract the tempo (in BPM) from a .wav file.
+
+    Parameters:
+    wav_path (str): The path to the .wav file
+
+    Returns:
+    float: Estimated tempo in beats per minute (BPM)
+    """
+    # Load the audio file
+    y, sr = librosa.load(wav_path)
+
+    # Estimate tempo
+    tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+
+    return tempo
+
+
+def extract_time_signature(wav_path: str) -> str:
+    """
+    Estimate the time signature from a .wav file.
+    """
+    y, sr = librosa.load(wav_path)
+
+    tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
+    beat_times = librosa.frames_to_time(beat_frames, sr=sr)
+    intervals = np.diff(beat_times)
+    mean_interval = np.mean(intervals)
+
+    if mean_interval < 0.7:
+        return "4/4"
+    elif mean_interval < 1.0:
+        return "3/4"
+    else:
+        return "6/8"
+
+
+def detect_key(wav_file_path: str) -> str:
+    """
+    Detect the musical key of a .wav file.
+    """
+    # Load the audio file
+    y, sr = librosa.load(wav_file_path)
+
+    # Extract the chroma feature from the audio signal
+    chroma = librosa.feature.chroma_cens(y=y, sr=sr)
+
+    # Compute the average chroma over time
+    chroma_avg = np.mean(chroma, axis=1)
+
+    # Define the chroma labels
+    chroma_labels = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+    # Find the peak in the chroma feature to detect the key
+    key_index = np.argmax(chroma_avg)
+
+    # Get the corresponding musical key
+    detected_key = chroma_labels[key_index]
+
+    return detected_key
+
+
+def extract_mode(wav_file_path):
+    # Load the audio file
+    y, sr = librosa.load(wav_file_path)
+
+    # Extract the chroma feature (Chroma Energy Normalized)
+    chroma = librosa.feature.chroma_cens(y=y, sr=sr)
+
+    # Compute the average chroma across all frames (columns)
+    chroma_avg = np.mean(chroma, axis=1)
+
+    # Define the chroma labels for musical notes
+    chroma_labels = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+    # Normalize the chroma to avoid bias towards higher values
+    chroma_avg = chroma_avg / np.sum(chroma_avg)
+
+    # Mapping to major and minor modes
+    # Simplified model based on the harmonic distribution of notes for major and minor scales:
+    # Major scale intervals: [0, 2, 4, 5, 7, 9, 11]
+    # Minor scale intervals: [0, 2, 3, 5, 7, 8, 10]
+    major_mode_intervals = [0, 2, 4, 5, 7, 9, 11]  # Notes in a major scale
+    minor_mode_intervals = [0, 2, 3, 5, 7, 8, 10]  # Notes in a natural minor scale
+
+    # Find the most common note in the chroma feature (index of the highest chroma value)
+    predominant_note_index = np.argmax(chroma_avg)
+
+    # Calculate the distance between the chroma pattern and the major/minor scale
+    chroma_dist_major = sum(
+        [abs(predominant_note_index - note) for note in major_mode_intervals]
+    )
+    chroma_dist_minor = sum(
+        [abs(predominant_note_index - note) for note in minor_mode_intervals]
+    )
+
+    # Return the mode based on the closest match
+    if chroma_dist_major < chroma_dist_minor:
+        return "Major"
+    else:
+        return "Minor"
+
+
+def get_duration_ms(wav_file_path):
+    # Load the audio file
+    y, sr = librosa.load(wav_file_path)
+
+    # Calculate the duration in seconds
+    duration_sec = librosa.get_duration(y=y, sr=sr)
+
+    # Convert duration to milliseconds
+    duration_ms = duration_sec * 1000  # 1 second = 1000 milliseconds
+
+    return duration_ms
+
+
+###########
 #############allan version1
 def extract_danceability(wav_path):
     y, sr = librosa.load(wav_path)
     tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
     return tempo
+
 
 def extract_energy(wav_path):
     y, sr = librosa.load(wav_path)
@@ -689,16 +813,15 @@ def extract_energy(wav_path):
     avg_energy = np.mean(rms)
     return avg_energy
 
+
 def extract_loadness(wav_path):
     S = librosa.feature.melspectrogram(y=y, sr=sr)
-    S += 1e-10  
-    print("Mel Spectrogram stats — min:", np.min(S), "max:", np.max(S)) 
-    log_S = librosa.power_to_db(S, ref=1.0)  
+    S += 1e-10
+    print("Mel Spectrogram stats — min:", np.min(S), "max:", np.max(S))
+    log_S = librosa.power_to_db(S, ref=1.0)
     mel_freqs = librosa.mel_frequencies(n_mels=S.shape[0])
     loudness = np.mean(librosa.perceptual_weighting(log_S, frequencies=mel_freqs))
     return loudness
-
-
 
 
 # *****************************************************
@@ -726,7 +849,7 @@ def databasegen(url, credentials_file) -> bool:
     # download_songs(songs, output_dir_songs)
 
     # Step 2: Playlist example
-    playlist_url = "https://open.spotify.com/playlist/37i9dQZF1E370bz4rA3n5H?si=90be33661d284b22"  # change this to take the parameter URL
+    playlist_url = "https://open.spotify.com/playlist/4MeFmZ7fDjIKx7w8yXSxMi?si=da2eea53fff34c00"  # change this to take the parameter URL
     output_dir_playlist = "downloaded_playlist"
     download_playlist(playlist_url, output_dir_playlist)
 
