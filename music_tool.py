@@ -20,6 +20,8 @@ import pathlib
 
 from typing import List, Tuple
 
+import librosa
+import numpy as np 
 # from mido import Message, MidiFile, MidiTrack
 
 
@@ -560,10 +562,6 @@ def get_spotify_credentials(credentials_file: str):
 #   Brief: This function uses the essentia ML models to extract the dancebility audio feature from a .wav file
 #
 # *****************************************************
-def extract_danceability(pathToURL):
-    pass
-
-
 # *****************************************************
 #
 #   extract_valance()
@@ -679,7 +677,28 @@ def download_playlist(playlist_url: str, output_folder: str) -> None:
     )
 
 
-############
+#############allan version1
+def extract_danceability(wav_path):
+    y, sr = librosa.load(wav_path)
+    tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+    return tempo
+
+def extract_energy(wav_path):
+    y, sr = librosa.load(wav_path)
+    rms = librosa.feature.rms(y=y)[0]
+    avg_energy = np.mean(rms)
+    return avg_energy
+
+def extract_loadness(wav_path):
+    S = librosa.feature.melspectrogram(y=y, sr=sr)
+    S += 1e-10  
+    print("Mel Spectrogram stats — min:", np.min(S), "max:", np.max(S)) 
+    log_S = librosa.power_to_db(S, ref=1.0)  
+    mel_freqs = librosa.mel_frequencies(n_mels=S.shape[0])
+    loudness = np.mean(librosa.perceptual_weighting(log_S, frequencies=mel_freqs))
+    return loudness
+
+
 
 
 # *****************************************************
