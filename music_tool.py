@@ -27,6 +27,14 @@ from sklearn.preprocessing import LabelEncoder
 import librosa
 import numpy as np
 
+import os
+import json
+import numpy as np
+import librosa
+from datetime import datetime
+import time
+from datetime import timedelta
+
 # from mido import Message, MidiFile, MidiTrack
 
 
@@ -366,7 +374,7 @@ def process_csv_folder(input_folder, output_folder="midi_files"):
     for csv_file in csv_files:
         full_path = os.path.join(input_folder, csv_file)
         convert_csv_to_midi(full_path, output_folder)
-    print("CSV to MIDI conversion complete.")
+    print("\nCSV to MIDI conversion complete.\n")
 
 
 # *****************************************************
@@ -441,10 +449,10 @@ def convert_midi_to_json(midi_file, json_file):
         with open(json_file, "w") as f:
             json.dump(midi_data, f, indent=2)
 
-        print(f"Successfully converted {midi_file} to {json_file}")
+        # print(f"Successfully converted {midi_file} to {json_file}")
 
     except Exception as e:
-        print(f"Error converting {midi_file}: {str(e)}")
+        print(f"Error converting in midi to json {midi_file}: {str(e)}")
 
 
 # *****************************************************
@@ -562,69 +570,6 @@ def get_spotify_credentials(credentials_file: str):
 
 # *****************************************************
 #
-#   extract_danceability()
-#
-#   Brief: This function uses the essentia ML models to extract the dancebility audio feature from a .wav file
-#
-# *****************************************************
-# *****************************************************
-#
-#   extract_valance()
-#
-#   Brief: This function uses the essentia ML models to extract the valance audio feature from a .wav file
-#
-# *****************************************************
-def extract_valance(pathToURL):
-    pass
-
-
-# *****************************************************
-#
-#   extract_tonality()
-#
-#   Brief: This function uses the essentia ML models to extract the tonality audio feature from a .wav file
-#
-# *****************************************************
-def extract_tonality(pathToURL):
-    pass
-
-
-# *******************
-# **********************************
-#
-#   extract_acousticness()
-#
-#   Brief: This function uses the essentia ML models to extract the acousticness audio feature from a .wav file
-#
-# *****************************************************
-def extract_acousticness(pathToURL):
-    pass
-
-
-# *****************************************************
-#
-#   extract_instrumentalness()
-#
-#   Brief: This function uses the essentia ML models to extract the instrumentalness audio feature from a .wav file
-#
-# *****************************************************
-def extract_instrumentalness(pathToURL):
-    pass
-
-
-# *****************************************************
-#
-#   extract_ML_features()
-#
-#   Brief: This function combines the individual functionality of each of the complex ML audio features from essentia and returns a JSON set of key:value pairs
-#
-# *****************************************************
-def extract_ML_features():
-    pass
-
-
-# *****************************************************
-#
 #   download_playlist()
 #
 #   Brief: this function downloads a playlist utilizing the cli tool spotdl, then returns back the path to the path to the directory
@@ -649,8 +594,6 @@ def download_playlist(url: str):
 
 #############
 # Functions to download .wav files given the spotify playlist
-
-
 def get_spotify_credentials(credentials_path: str) -> Tuple[str, str]:
     """Load Spotify API credentials from a JSON file."""
     with open(credentials_path, "r") as f:
@@ -683,30 +626,13 @@ def download_playlist(playlist_url: str, output_folder: str) -> None:
 
 
 def extract_tempo(wav_path: str) -> float:
-    """
-    Extract the tempo (in BPM) from a .wav file.
-
-    Parameters:
-    wav_path (str): The path to the .wav file
-
-    Returns:
-    float: Estimated tempo in beats per minute (BPM)
-    """
-    # Load the audio file
     y, sr = librosa.load(wav_path)
-
-    # Estimate tempo
     tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
-
-    return tempo
+    return float(tempo)
 
 
 def extract_time_signature(wav_path: str) -> str:
-    """
-    Estimate the time signature from a .wav file.
-    """
     y, sr = librosa.load(wav_path)
-
     tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
     beat_times = librosa.frames_to_time(beat_frames, sr=sr)
     intervals = np.diff(beat_times)
@@ -720,108 +646,151 @@ def extract_time_signature(wav_path: str) -> str:
         return "6/8"
 
 
-def detect_key(wav_file_path: str) -> str:
-    """
-    Detect the musical key of a .wav file.
-    """
-    # Load the audio file
+def extract_key(wav_file_path: str) -> str:
     y, sr = librosa.load(wav_file_path)
-
-    # Extract the chroma feature from the audio signal
     chroma = librosa.feature.chroma_cens(y=y, sr=sr)
-
-    # Compute the average chroma over time
     chroma_avg = np.mean(chroma, axis=1)
-
-    # Define the chroma labels
     chroma_labels = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-
-    # Find the peak in the chroma feature to detect the key
     key_index = np.argmax(chroma_avg)
-
-    # Get the corresponding musical key
-    detected_key = chroma_labels[key_index]
-
-    return detected_key
+    detected_key = chroma_labels[int(key_index)]
+    return str(detected_key)
 
 
-def extract_mode(wav_file_path):
-    # Load the audio file
+def extract_mode(wav_file_path: str) -> str:
     y, sr = librosa.load(wav_file_path)
-
-    # Extract the chroma feature (Chroma Energy Normalized)
     chroma = librosa.feature.chroma_cens(y=y, sr=sr)
-
-    # Compute the average chroma across all frames (columns)
     chroma_avg = np.mean(chroma, axis=1)
-
-    # Define the chroma labels for musical notes
-    chroma_labels = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-
-    # Normalize the chroma to avoid bias towards higher values
     chroma_avg = chroma_avg / np.sum(chroma_avg)
 
-    # Mapping to major and minor modes
-    # Simplified model based on the harmonic distribution of notes for major and minor scales:
-    # Major scale intervals: [0, 2, 4, 5, 7, 9, 11]
-    # Minor scale intervals: [0, 2, 3, 5, 7, 8, 10]
-    major_mode_intervals = [0, 2, 4, 5, 7, 9, 11]  # Notes in a major scale
-    minor_mode_intervals = [0, 2, 3, 5, 7, 8, 10]  # Notes in a natural minor scale
+    major_mode_intervals = [0, 2, 4, 5, 7, 9, 11]
+    minor_mode_intervals = [0, 2, 3, 5, 7, 8, 10]
 
-    # Find the most common note in the chroma feature (index of the highest chroma value)
     predominant_note_index = np.argmax(chroma_avg)
 
-    # Calculate the distance between the chroma pattern and the major/minor scale
     chroma_dist_major = sum(
-        [abs(predominant_note_index - note) for note in major_mode_intervals]
+        abs(predominant_note_index - note) for note in major_mode_intervals
     )
     chroma_dist_minor = sum(
-        [abs(predominant_note_index - note) for note in minor_mode_intervals]
+        abs(predominant_note_index - note) for note in minor_mode_intervals
     )
 
-    # Return the mode based on the closest match
-    if chroma_dist_major < chroma_dist_minor:
-        return "Major"
-    else:
-        return "Minor"
+    return "Major" if chroma_dist_major < chroma_dist_minor else "Minor"
 
 
-def get_duration_ms(wav_file_path):
-    # Load the audio file
+def extract_duration(wav_file_path: str) -> float:
     y, sr = librosa.load(wav_file_path)
-
-    # Calculate the duration in seconds
     duration_sec = librosa.get_duration(y=y, sr=sr)
-
-    # Convert duration to milliseconds
-    duration_ms = duration_sec * 1000  # 1 second = 1000 milliseconds
-
-    return duration_ms
+    return float(duration_sec * 1000)
 
 
-###########
-#############allan version1
-def extract_danceability(wav_path):
+def extract_danceability(wav_path: str) -> float:
     y, sr = librosa.load(wav_path)
     tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
-    return tempo
+    return float(tempo)
 
 
-def extract_energy(wav_path):
+def extract_energy(wav_path: str) -> float:
     y, sr = librosa.load(wav_path)
     rms = librosa.feature.rms(y=y)[0]
     avg_energy = np.mean(rms)
-    return avg_energy
+    return float(avg_energy)
 
 
-def extract_loadness(wav_path):
+def extract_loudness(wav_path: str) -> float:
+    y, sr = librosa.load(wav_path)
     S = librosa.feature.melspectrogram(y=y, sr=sr)
     S += 1e-10
-    print("Mel Spectrogram stats — min:", np.min(S), "max:", np.max(S))
     log_S = librosa.power_to_db(S, ref=1.0)
     mel_freqs = librosa.mel_frequencies(n_mels=S.shape[0])
     loudness = np.mean(librosa.perceptual_weighting(log_S, frequencies=mel_freqs))
-    return loudness
+    return float(loudness)
+
+
+# --- Smart Processing + Visual Progress Bar ---
+def process_directory_to_json(directory_path: str, output_json_path: str):
+    results = {}
+
+    if not os.path.isdir(directory_path):
+        print(f"Error: Directory {directory_path} does not exist.")
+        return
+
+    wav_files = [f for f in os.listdir(directory_path) if f.lower().endswith(".wav")]
+
+    if not wav_files:
+        print(f"No .wav files found in {directory_path}.")
+        return
+
+    # Load existing results if JSON already exists
+    if os.path.exists(output_json_path):
+        try:
+            with open(output_json_path, "r") as f:
+                results = json.load(f)
+            print(
+                f"Loaded existing JSON with {len(results)} entries. Will skip already processed files."
+            )
+        except Exception as e:
+            print(f"Warning: Failed to load existing JSON. Starting fresh. Error: {e}")
+
+    files_to_process = [f for f in wav_files if f not in results]
+
+    if not files_to_process:
+        print("All .wav files are already processed. Nothing to do!")
+        return
+
+    print(f"Found {len(files_to_process)} new files to process...\n")
+
+    start_time = time.time()
+    total_files = len(files_to_process)
+
+    for idx, filename in enumerate(files_to_process, start=1):
+        wav_path = os.path.join(directory_path, filename)
+        try:
+            song_data = {
+                "tempo": extract_tempo(wav_path),
+                "time_signature": extract_time_signature(wav_path),
+                "key": extract_key(wav_path),
+                "mode": extract_mode(wav_path),
+                "duration_ms": extract_duration(wav_path),
+                "danceability": extract_danceability(wav_path),
+                "energy": extract_energy(wav_path),
+                "loudness": extract_loudness(wav_path),
+            }
+            results[filename] = song_data
+        except Exception as e:
+            print(f"\nError processing {filename}: {e}")
+
+        # Progress bar and ETA calculation
+        elapsed = time.time() - start_time
+        avg_time_per_file = elapsed / idx
+        remaining_files = total_files - idx
+        eta_seconds = remaining_files * avg_time_per_file
+        eta = str(timedelta(seconds=int(eta_seconds)))
+
+        progress = (idx / total_files) * 100
+        bar_length = 40  # Length of progress bar
+        filled_length = int(progress / 100 * bar_length)
+        bar = "█" * filled_length + "-" * (bar_length - filled_length)
+        print(f"\r[{bar}] {progress:.2f}% | ETA: {eta}", end="")
+
+    print("\n\nProcessing complete.")
+
+    output_dir = os.path.dirname(output_json_path)
+    if output_dir and not os.path.exists(output_dir):
+        try:
+            os.makedirs(output_dir)
+            print(f"Created output directory: {output_dir}")
+        except Exception as e:
+            print(f"Failed to create output directory {output_dir}: {e}")
+            return
+
+    try:
+        with open(output_json_path, "w") as f:
+            json.dump(results, f, indent=4)
+        print(
+            f"Updated JSON saved to {output_json_path} with {len(results)} total entries."
+        )
+    except Exception as e:
+        print(f"Failed to write JSON file: {e}")
 
 
 # *****************************************************
@@ -832,100 +801,74 @@ def extract_loadness(wav_path):
 #
 # *****************************************************
 def databasegen(url, credentials_file) -> bool:
-    ###########
-    # Step 0: Load credentials
     client_id, client_secret = get_spotify_credentials("credentials.json")
-
-    # (Optional) Print credentials to verify (comment this out if not needed)
-    # print(client_id, client_secret)
-
-    # Step 1: Single songs example -- commented out to test playlist
-    # songs = [
-    #     "https://open.spotify.com/track/your_song_id_1",
-    #     "https://open.spotify.com/track/your_song_id_2",
-    # ]
-
-    # output_dir_songs = "downloaded_songs"
-    # download_songs(songs, output_dir_songs)
-
-    # Step 2: Playlist example
-    playlist_url = "https://open.spotify.com/playlist/4MeFmZ7fDjIKx7w8yXSxMi?si=da2eea53fff34c00"  # change this to take the parameter URL
-    output_dir_playlist = "downloaded_playlist"
-    download_playlist(playlist_url, output_dir_playlist)
-
-    print("All downloads complete and store in downloaded_playlist!")
-
-    # now I need to move to the feature extraction --> basic
-    ##########
-
-    """
-    Main function to generate the training dataset by processing input metadata,
-    extracting song attributes, analyzing audio, and merging input-output pairs.
-
-    :param url: The URL containing the playlist or song list to process.
-    :return: Boolean indicating success or failure.
-    """
-
-    """
-    As this function is developed uncomment the code function calls below
-    """
-
-    # Retrieve API credentials
-    # client_id, client_secret = get_spotify_credentials(credentials_file)
 
     # INPUT PAIR CREATION SECTION
     # -------------------------------------
-    # Step 1: Download all of the songs and store in folder (in .mp3 format)
-    # mp3_files = download_playlist(url)
-    # # Step 2: Convert all of the songs to .wav format
-    # convert_folder(
-    #     mp3_files,
-    # )
+    print("\n\n\nINPUT PAIR JSON CREATION STARTED...\n\n\n")
+    downloaded_wavs_dir = "downloaded_playlist"
+    download_playlist(url, downloaded_wavs_dir)
+    print("\n\nAll downloads complete and store in downloaded_playlist!\n\n\n")
 
-    # Step 3: Analyze all of the songs that are within the folder containing each of the .wav files
-    # Step 3.1 Basic Feature Extraction (Objective):
-    """
-    enter the analyze .wav folder function
-    hop in to while loop that iterates through each of the songs in the folder
-    for each song call the analyze song basic (for input pair creation)
-    store the results and pass that back to be stored in the output file
-    """
+    # Setup paths
+    input_directory = downloaded_wavs_dir
+    sample_wav = None
 
-    # Step 3.2 ML Feature Abstraction (Subjective)
-    """
-    enter the analyze .wav folder function
-    hop in to while loop that iterates through each of the songs in the folder
-    for each song call the analyze song ML (for input pair creation)
-    store the results and pass that back to be stored in the output file
-    """
+    try:
+        wav_files = [
+            f for f in os.listdir(input_directory) if f.lower().endswith(".wav")
+        ]
+        if not wav_files:
+            print(f"No .wav files found in {input_directory}. Exiting.")
+            return
+        sample_wav = os.path.join(input_directory, wav_files[0])
+    except Exception as e:
+        print(f"Error accessing {input_directory}: {e}")
+        return
 
-    # Step 4 Store all of the results in an output JSON
+    # Dynamic output filename
+    output_dir = "input_pair_json_data"
+    output_json_filename = f"{os.path.basename(input_directory)}_features.json"
+    output_json_path = os.path.join(output_dir, output_json_filename)
+
+    print("\nTesting full directory processing to JSON (with smart skipping):")
+    process_directory_to_json(input_directory, output_json_path)
+
+    print("\n\n\nINPUT PAIR JSON CREATION FINISHED\n\n\n")
+
+    print("\n\n\nOUTPUT PAIR JSON CREATION STARTED...\n\n\n")
+    # Retrieve API credentials
+    # client_id, client_secret = get_spotify_credentials(credentials_file)
 
     # OUTPUT PAIR CREATION SECTION
     # -------------------------------------
-    # # Step 1: Download and Convert Audio
-    # # Use spotdl to download .mp3 files, convert them to .wav, and prepare for analysis.
-    # wav_directory = process_audio_files(input_csv_path)
+    output_dir_processed_wavs_in_csv = "chord_data"
+    process_wav_folder(downloaded_wavs_dir, output_dir_processed_wavs_in_csv)
 
-    # # Step 2: Analyze Audio Data
-    # # Extract harmonic, beat, and chord data, storing results in CSV format.
-    # analyzed_data_dir = analyze_audio(wav_directory)
+    # csv to midi
+    csv2midi_output = "csv2midi_output"
+    process_csv_folder(output_dir_processed_wavs_in_csv, csv2midi_output)
+    # midi to JSON
 
-    # # Step 3: Convert Processed Data to JSON
-    # # Convert the analyzed data (stored in CSV format) into JSON for training.
-    # analyzed_json_dir = convert_analyzed_data_to_json(analyzed_data_dir)
+    output_pair_json_data = "output_pair_json_data"
+    process_midi_folder_json_conversion(csv2midi_output, output_pair_json_data)
+
+    print("\n\n\nOUTPUT PAIR JSON CREATION FINISHED\n\n\n")
 
     # COMBINING INPUT AND OUTPUT DATA PAIRS
     # -------------------------------------
-    # # Step 4: Merge Input and Output Data
-    # # Combine input metadata with the corresponding analyzed song data.
+
+    print("\n\n\nCOMBINING INPUT & OUTPUT JSON DATA\n\n\n")
+    # Step 4: Merge Input and Output Data
+    # Combine input metadata with the corresponding analyzed song data.
     # final_dataset_path = merge_input_output(input_csv_path, analyzed_json_dir)
 
     # Step 5: Output the location of the final dataset
     # print(f"Dataset successfully created: {final_dataset_path}")
     # print("Output: /final/dataset/path/file.json")
 
-    # return False  # Adjust as needed for error handling
+    print("\n\n\nINPUT & OUTUPT PAIR JSON DATASET CREATED\n\n\n")
+    return True  # Adjust as needed for error handling
 
 
 ### MAIN FUNCTION WITH COMMAND-LINE INTERFACE ###
