@@ -7,6 +7,7 @@ import essentia.standard as es
 from pydub import AudioSegment
 import mido
 import json
+import csv
 
 import librosa
 import spotipy
@@ -843,6 +844,32 @@ def create_input_output_pairs(input_pair_dir, output_pair_dir, output_file_path)
     return absolute_output_path
 
 
+def process_json_to_cell(input_json_file, output_csv_file):
+    with open(input_json_file, "r") as file:
+        data = json.load(file)
+
+    # Open the CSV file for writing
+    with open(output_csv_file, "w", newline="") as csvfile:
+        csv_writer = csv.writer(csvfile)
+
+        # Iterate through the songs and write each formatted block as a new row
+        for song_name, song_data in data.items():
+            # Convert to compact JSON without extra spaces and newlines
+            input_json = json.dumps(song_data["input_json"], separators=(",", ":"))
+            output_json = json.dumps(song_data["output_json"], separators=(",", ":"))
+
+            # Combine input and output JSON in the desired format
+            formatted_text = f"### Instruction {input_json} ### Response {output_json}"
+
+            # Write the formatted text as a new row in the CSV
+            csv_writer.writerow([formatted_text])
+
+    print(f"Output saved to {output_csv_file}")
+
+    # Return the path of the output file
+    return output_csv_file
+
+
 # *****************************************************
 #
 #   databasegen()
@@ -910,6 +937,9 @@ def databasegen(url, credentials_file) -> bool:
     create_input_output_pairs(
         input_pair_json_data, output_pair_json_data, input_output_dataset
     )
+
+    music_training_dataset = "music_training_dataset"
+    process_json_to_cell("input_output_dataset.json", music_training_dataset)
 
     print("\n\n\nINPUT & OUTUPT PAIR JSON DATASET CREATED\n\n\n")
     return True  # Adjust as needed for error handling
