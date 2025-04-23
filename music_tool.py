@@ -99,7 +99,7 @@ def convert_folder(input_folder, output_folder="converted_wavs"):
 #   Brief: Given a .wav file extract the chords using harmonic profiling and output a .csv file containing the timestamp and chord
 #
 # *****************************************************
-def extract_chords_from_wav(wav_file, output_folder="chord_data"):
+def extract_chords_from_wav(wav_file, output_folder="processed_tracks_csv"):
     """
     Extracts chord progressions from a WAV file and saves the output as a CSV.
     """
@@ -160,7 +160,9 @@ def extract_chords_from_wav(wav_file, output_folder="chord_data"):
 #   Brief: Given a folder containing .wav files process each wav file for chord extraction
 #
 # *****************************************************
-def process_wav_folder(input_folder="converted_wavs", output_folder="chord_data"):
+def process_wav_folder(
+    input_folder="converted_wavs", output_folder="processed_tracks_csv"
+):
     """
     Processes all WAV files in the input folder, extracting chord progressions.
     """
@@ -706,10 +708,7 @@ def extract_loudness(wav_path: str) -> float:
     return float(loudness)
 
 
-# --- Smart Processing + Visual Progress Bar ---
-def process_directory_to_json(directory_path: str, output_json_path: str):
-    results = {}
-
+def process_directory_to_json(directory_path: str, output_directory_path: str):
     if not os.path.isdir(directory_path):
         print(f"Error: Directory {directory_path} does not exist.")
         return
@@ -720,18 +719,18 @@ def process_directory_to_json(directory_path: str, output_json_path: str):
         print(f"No .wav files found in {directory_path}.")
         return
 
-    # Load existing results if JSON already exists
-    if os.path.exists(output_json_path):
+    if not os.path.exists(output_directory_path):
         try:
-            with open(output_json_path, "r") as f:
-                results = json.load(f)
-            print(
-                f"Loaded existing JSON with {len(results)} entries. Will skip already processed files."
-            )
+            os.makedirs(output_directory_path)
+            print(f"Created output directory: {output_directory_path}")
         except Exception as e:
-            print(f"Warning: Failed to load existing JSON. Starting fresh. Error: {e}")
+            print(f"Failed to create output directory {output_directory_path}: {e}")
+            return
 
-    files_to_process = [f for f in wav_files if f not in results]
+    existing_files = set(os.listdir(output_directory_path))
+    files_to_process = [
+        f for f in wav_files if f"{os.path.splitext(f)[0]}.json" not in existing_files
+    ]
 
     if not files_to_process:
         print("All .wav files are already processed. Nothing to do!")
@@ -744,6 +743,9 @@ def process_directory_to_json(directory_path: str, output_json_path: str):
 
     for idx, filename in enumerate(files_to_process, start=1):
         wav_path = os.path.join(directory_path, filename)
+        json_filename = os.path.splitext(filename)[0] + ".json"
+        output_json_path = os.path.join(output_directory_path, json_filename)
+
         try:
             song_data = {
                 "tempo": extract_tempo(wav_path),
@@ -755,7 +757,10 @@ def process_directory_to_json(directory_path: str, output_json_path: str):
                 "energy": extract_energy(wav_path),
                 "loudness": extract_loudness(wav_path),
             }
-            results[filename] = song_data
+
+            with open(output_json_path, "w") as f:
+                json.dump(song_data, f, indent=4)
+
         except Exception as e:
             print(f"\nError processing {filename}: {e}")
 
@@ -772,25 +777,70 @@ def process_directory_to_json(directory_path: str, output_json_path: str):
         bar = "█" * filled_length + "-" * (bar_length - filled_length)
         print(f"\r[{bar}] {progress:.2f}% | ETA: {eta}", end="")
 
-    print("\n\nProcessing complete.")
+    print("\n\nProcessing complete. Individual JSON files saved.")
 
-    output_dir = os.path.dirname(output_json_path)
-    if output_dir and not os.path.exists(output_dir):
-        try:
-            os.makedirs(output_dir)
-            print(f"Created output directory: {output_dir}")
-        except Exception as e:
-            print(f"Failed to create output directory {output_dir}: {e}")
-            return
 
-    try:
-        with open(output_json_path, "w") as f:
-            json.dump(results, f, indent=4)
-        print(
-            f"Updated JSON saved to {output_json_path} with {len(results)} total entries."
+def create_input_output_pairs(input_pair_dir, output_pair_dir, output_file_path):
+    if not os.path.isdir(input_pair_dir):
+        raise FileNotFoundError(f"Input directory '{input_pair_dir}' does not exist.")
+    if not os.path.isdir(output_pair_dir):
+        raise FileNotFoundError(f"Output directory '{output_pair_dir}' does not exist.")
+
+    if not output_file_path.endswith(".json"):
+        output_file_path += ".json"
+
+    input_files = {
+        os.path.splitext(f)[0]: f
+        for f in os.listdir(input_pair_dir)
+        if f.endswith(".json")
+    }
+    output_files_raw = [f for f in os.listdir(output_pair_dir) if f.endswith(".json")]
+
+    # Normalize output filenames: remove '_chords' suffix before comparing
+    output_files = {}
+    for f in output_files_raw:
+        base_name = os.path.splitext(f)[0]
+        if base_name.endswith("_chords"):
+            base_name = base_name[:-7]  # remove "_chords"
+        output_files[base_name] = f
+
+    # print(f"Input files (base names): {input_files.keys()}")
+    # print(f"Output files (base names): {output_files.keys()}")
+
+    common_keys = set(input_files.keys()) & set(output_files.keys())
+    print(f"Common base filenames: {common_keys}")
+
+    if not common_keys:
+        raise ValueError(
+            "No matching JSON files found between input and output directories."
         )
-    except Exception as e:
-        print(f"Failed to write JSON file: {e}")
+
+    combined_data = {}
+
+    for key in sorted(common_keys):
+        input_path = os.path.join(input_pair_dir, input_files[key])
+        output_path = os.path.join(output_pair_dir, output_files[key])
+
+        with open(input_path, "r", encoding="utf-8") as f:
+            input_json = json.load(f)
+
+        with open(output_path, "r", encoding="utf-8") as f:
+            output_json = json.load(f)
+
+        combined_data[key] = {
+            "input_json": input_json,
+            "output_json": output_json,
+        }
+
+    with open(output_file_path, "w", encoding="utf-8") as f:
+        json.dump(combined_data, f, indent=2, ensure_ascii=False)
+
+    absolute_output_path = os.path.abspath(output_file_path)
+    print(
+        f"✅ Successfully created {absolute_output_path} with {len(combined_data)} pairs."
+    )
+
+    return absolute_output_path
 
 
 # *****************************************************
@@ -806,9 +856,9 @@ def databasegen(url, credentials_file) -> bool:
     # INPUT PAIR CREATION SECTION
     # -------------------------------------
     print("\n\n\nINPUT PAIR JSON CREATION STARTED...\n\n\n")
-    downloaded_wavs_dir = "downloaded_playlist"
+    downloaded_wavs_dir = "tracks_wav"
     download_playlist(url, downloaded_wavs_dir)
-    print("\n\nAll downloads complete and store in downloaded_playlist!\n\n\n")
+    print("\n\nAll downloads complete and store in /tracks_wav!\n\n\n")
 
     # Setup paths
     input_directory = downloaded_wavs_dir
@@ -827,12 +877,9 @@ def databasegen(url, credentials_file) -> bool:
         return
 
     # Dynamic output filename
-    output_dir = "input_pair_json_data"
-    output_json_filename = f"{os.path.basename(input_directory)}_features.json"
-    output_json_path = os.path.join(output_dir, output_json_filename)
-
+    input_pair_json_data = "input_pair_json_data"
     print("\nTesting full directory processing to JSON (with smart skipping):")
-    process_directory_to_json(input_directory, output_json_path)
+    process_directory_to_json(input_directory, input_pair_json_data)
 
     print("\n\n\nINPUT PAIR JSON CREATION FINISHED\n\n\n")
 
@@ -842,11 +889,11 @@ def databasegen(url, credentials_file) -> bool:
 
     # OUTPUT PAIR CREATION SECTION
     # -------------------------------------
-    output_dir_processed_wavs_in_csv = "chord_data"
+    output_dir_processed_wavs_in_csv = "processed_tracks_csv"
     process_wav_folder(downloaded_wavs_dir, output_dir_processed_wavs_in_csv)
 
     # csv to midi
-    csv2midi_output = "csv2midi_output"
+    csv2midi_output = "processed_tracks_midi"
     process_csv_folder(output_dir_processed_wavs_in_csv, csv2midi_output)
     # midi to JSON
 
@@ -859,13 +906,10 @@ def databasegen(url, credentials_file) -> bool:
     # -------------------------------------
 
     print("\n\n\nCOMBINING INPUT & OUTPUT JSON DATA\n\n\n")
-    # Step 4: Merge Input and Output Data
-    # Combine input metadata with the corresponding analyzed song data.
-    # final_dataset_path = merge_input_output(input_csv_path, analyzed_json_dir)
-
-    # Step 5: Output the location of the final dataset
-    # print(f"Dataset successfully created: {final_dataset_path}")
-    # print("Output: /final/dataset/path/file.json")
+    input_output_dataset = "input_output_dataset"
+    create_input_output_pairs(
+        input_pair_json_data, output_pair_json_data, input_output_dataset
+    )
 
     print("\n\n\nINPUT & OUTUPT PAIR JSON DATASET CREATED\n\n\n")
     return True  # Adjust as needed for error handling
@@ -908,7 +952,7 @@ def main():
     parser_extract.add_argument(
         "--output_folder",
         type=str,
-        default="chord_data",
+        default="processed_tracks_csv",
         help="Folder to save chord CSV files.",
     )
 
