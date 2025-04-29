@@ -571,30 +571,6 @@ def get_spotify_credentials(credentials_file: str):
     return credentials["client_id"], credentials["client_secret"]
 
 
-# *****************************************************
-#
-#   download_playlist()
-#
-#   Brief: this function downloads a playlist utilizing the cli tool spotdl, then returns back the path to the path to the directory
-#
-# *****************************************************
-def download_playlist(url: str):
-    # output_dir = Path.cwd() / "downloaded_mp3_files"
-    # output_dir.mkdir(exist_ok=True)
-
-    # command = ["spotdl" "download", url, "--output", str(output_dir)]
-
-    # try:
-    #     subprocess.run(command, check=True)
-    # except subprocess.CalledProcessError as e:
-    #     print(f"An error occured while downloaded the playlist: {e}")
-    #     raise
-
-    # return output_dir
-
-    pass
-
-
 #############
 # Functions to download .wav files given the spotify playlist
 def get_spotify_credentials(credentials_path: str) -> Tuple[str, str]:
@@ -945,6 +921,81 @@ def databasegen(url, credentials_file) -> bool:
     return True  # Adjust as needed for error handling
 
 
+# *****************************************************
+#
+#   databasegen_target_downloaded_songs()
+#
+#   Brief: The following function contains all the logic to execute the database creation pipeline with folder of downloaded songs already made
+#
+# *****************************************************
+def databasegen_target_downloaded_songs(downloaded_tracks, credentials_file) -> bool:
+    client_id, client_secret = get_spotify_credentials("credentials.json")
+
+    print("\n\n\n IN DATABASE_TARGET_DOWNLOADED_SONGS\n\n\n")
+
+    # INPUT PAIR CREATION SECTION
+    # -------------------------------------
+    print("\n\n\nINPUT PAIR JSON CREATION STARTED...\n\n\n")
+    downloaded_wavs_dir = downloaded_tracks
+
+    # Setup paths
+    input_directory = downloaded_wavs_dir
+    sample_wav = None
+
+    try:
+        wav_files = [
+            f for f in os.listdir(input_directory) if f.lower().endswith(".wav")
+        ]
+        if not wav_files:
+            print(f"No .wav files found in {input_directory}. Exiting.")
+            return
+        sample_wav = os.path.join(input_directory, wav_files[0])
+    except Exception as e:
+        print(f"Error accessing {input_directory}: {e}")
+        return
+
+    # Dynamic output filename
+    input_pair_json_data = "input_pair_json_data"
+    print("\nTesting full directory processing to JSON (with smart skipping):")
+    process_directory_to_json(input_directory, input_pair_json_data)
+
+    print("\n\n\nINPUT PAIR JSON CREATION FINISHED\n\n\n")
+
+    print("\n\n\nOUTPUT PAIR JSON CREATION STARTED...\n\n\n")
+    # Retrieve API credentials
+    # client_id, client_secret = get_spotify_credentials(credentials_file)
+
+    # OUTPUT PAIR CREATION SECTION
+    # -------------------------------------
+    output_dir_processed_wavs_in_csv = "processed_tracks_csv"
+    process_wav_folder(downloaded_wavs_dir, output_dir_processed_wavs_in_csv)
+
+    # csv to midi
+    csv2midi_output = "processed_tracks_midi"
+    process_csv_folder(output_dir_processed_wavs_in_csv, csv2midi_output)
+    # midi to JSON
+
+    output_pair_json_data = "output_pair_json_data"
+    process_midi_folder_json_conversion(csv2midi_output, output_pair_json_data)
+
+    print("\n\n\nOUTPUT PAIR JSON CREATION FINISHED\n\n\n")
+
+    # COMBINING INPUT AND OUTPUT DATA PAIRS
+    # -------------------------------------
+
+    print("\n\n\nCOMBINING INPUT & OUTPUT JSON DATA\n\n\n")
+    input_output_dataset = "input_output_dataset"
+    create_input_output_pairs(
+        input_pair_json_data, output_pair_json_data, input_output_dataset
+    )
+
+    music_training_dataset = "music_training_dataset"
+    process_json_to_cell("input_output_dataset.json", music_training_dataset)
+
+    print("\n\n\nINPUT & OUTUPT PAIR JSON DATASET CREATED\n\n\n")
+    return True  # Adjust as needed for error handling
+
+
 ### MAIN FUNCTION WITH COMMAND-LINE INTERFACE ###
 def main():
     parser = argparse.ArgumentParser(
@@ -1031,9 +1082,6 @@ def main():
         "--midi_file", type=str, help="Single MIDI file to convert to text."
     )
     parser_midi2txt.add_argument(
-        "--input_folder", type=str, help="Folder containing MIDI files to convert."
-    )
-    parser_midi2txt.add_argument(
         "--output_folder",
         type=str,
         default="midi_texts",
@@ -1079,7 +1127,10 @@ def main():
         "databasegen", help="Initiate database gen. pipeline."
     )
     parser_databasegen.add_argument(
-        "--input_url", type=str, help="Provide Spotify playlist URL"
+        "--input_url", type=str, help="Provide Spotify playlist URL."
+    )
+    parser_databasegen.add_argument(
+        "--tracks_dir", type=str, help="Provide Path to downloaded tracks."
     )
     parser_databasegen.add_argument(
         "--credentials_path",
@@ -1109,8 +1160,6 @@ def main():
     elif args.command == "midi2txt":
         if args.midi_file:
             convert_midi_to_text(args.midi_file, args.output_folder)
-        elif args.input_folder:
-            process_midi_folder(args.input_folder, args.output_folder)
         else:
             print(
                 "Please specify either --midi_file for a single file or --input_folder for a folder of MIDI files."
@@ -1159,8 +1208,12 @@ def main():
     elif args.command == "databasegen":
         if args.input_url:
             databasegen(args.input_url, args.credentials_path)
+        elif args.tracks_dir:
+            databasegen_target_downloaded_songs(args.tracks_dir, args.credentials_path)
         else:
-            print("Please specify --input_url a valid spotify playlist url")
+            print(
+                "Please specify either --input_url a valid spotify playlist url, or --tracks_dir a valid path to downloaded tracks."
+            )
     else:
         parser.print_help()
 
